@@ -1019,7 +1019,7 @@ divesoft_freedom_parser_samples_foreach (dc_parser_t *abstract, dc_sample_callba
 				sample.cns = array_uint16_le (data + offset + 6) / 100.0;
 				if (callback) callback(DC_SAMPLE_CNS, &sample, userdata);
 			} else if (event == EVENT_SETPOINT_MANUAL || event == EVENT_SETPOINT_AUTO) {
-				sample.setpoint = data[6] / 100.0;
+				sample.setpoint = data[offset + 6] / 100.0;
 				if (callback) callback(DC_SAMPLE_SETPOINT, &sample, userdata);
 			}
 		} else if (type == LREC_MEASURE) {
