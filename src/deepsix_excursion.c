@@ -71,6 +71,32 @@ typedef struct deepsix_excursion_device_t {
 	unsigned char fingerprint[FP_SIZE];
 } deepsix_excursion_device_t;
 
+static void
+deepsix_excursion_log_packet (dc_context_t *context, const char *tag, const unsigned char *packet, size_t size)
+{
+	if (!context || !packet || size < 4) {
+		return;
+	}
+
+	unsigned char grp = packet[0];
+	unsigned char cmd = packet[1];
+	unsigned char dir = packet[2];
+	unsigned char len = packet[3];
+	size_t needed = 4 + (size_t)len + 1;
+
+	// Always emit a direct stderr log to avoid missing context logs in some builds.
+	fprintf (stderr,
+		"[LDC][deepsix_excursion %s] grp=0x%02X cmd=0x%02X dir=0x%02X len=%u size=" DC_PRINTF_SIZE " need=" DC_PRINTF_SIZE "\n",
+		tag, grp, cmd, dir, len, size, needed);
+	fflush (stderr);
+
+	dc_context_log (context, DC_LOGLEVEL_INFO, __FILE__, __LINE__, FUNCTION,
+		"%s grp=0x%02X cmd=0x%02X dir=0x%02X len=%u size=" DC_PRINTF_SIZE " need=" DC_PRINTF_SIZE,
+		tag, grp, cmd, dir, len, size, needed);
+	dc_context_hexdump (context, DC_LOGLEVEL_INFO, __FILE__, __LINE__, FUNCTION,
+		tag, packet, (unsigned int)size);
+}
+
 static dc_status_t deepsix_excursion_device_set_fingerprint (dc_device_t *abstract, const unsigned char *data, unsigned int size);
 static dc_status_t deepsix_excursion_device_foreach (dc_device_t *abstract, dc_dive_callback_t callback, void *userdata);
 static dc_status_t deepsix_excursion_device_timesync(dc_device_t *abstract, const dc_datetime_t *datetime);
@@ -111,6 +137,7 @@ deepsix_excursion_send (deepsix_excursion_device_t *device, unsigned char grp, u
 	packet[size + 4] = checksum_add_uint8 (packet, size + 4, 0) ^ 0xFF;
 
 	// Send the data packet.
+	deepsix_excursion_log_packet (abstract->context, "TX", packet, 4 + size + 1);
 	status = dc_iostream_write (device->iostream, packet, 4 + size + 1, NULL);
 	if (status != DC_STATUS_SUCCESS) {
 		ERROR (abstract->context, "Failed to send the command.");
@@ -133,6 +160,9 @@ deepsix_excursion_recv (deepsix_excursion_device_t *device, unsigned char grp, u
 	if (status != DC_STATUS_SUCCESS) {
 		ERROR (abstract->context, "Failed to receive the packet.");
 		return status;
+	}
+	if (transferred > 0) {
+		deepsix_excursion_log_packet (abstract->context, "RX", packet, transferred);
 	}
 
 	if (transferred < 4) {
